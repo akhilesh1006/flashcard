@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Backgrounds -->
+    <color name="bg_app">#121212</color>
+    <color name="bg_surface">#1E1E1E</color>
+    <color name="bg_surface_elevated">#2C2C2C</color>
+    
+    <!-- Text Colors -->
+    <color name="text_primary">#FFFFFF</color>
+    <color name="text_secondary">#B3B3B3</color>
+    <color name="text_hint">#888888</color>
+    <color name="text_inverted">#121212</color>
+
+    <!-- Vibrant Nav Accents -->
+    <color name="nav_subjects">#00E5FF</color>
+    <color name="nav_all_cards">#E040FB</color>
+    <color name="nav_import_word">#00E676</color>
+    <color name="nav_clear_data">#FF5252</color>
+    <color name="nav_test_mode">#FFAB40</color>
+    <color name="nav_test_history">#448AFF</color>
+
+    <color name="border_color">#4A4A4A</color>
+
+    <color name="streak_color">#FF7043</color>
+    <color name="streak_bg">#3D1E16</color>
+
+    <color name="goal_color">#00E676</color>
+    <color name="goal_bg">#113620</color>
+
+    <!-- Difficulty Colors -->
+    <color name="diff_easy">#69F0AE</color>
+    <color name="diff_medium">#FFD54F</color>
+    <color name="diff_hard">#FF7043</color>
+</resources>

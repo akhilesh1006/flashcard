@@ -1,0 +1,388 @@
+package com.example.flashcard;
+
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
+import android.animation.ObjectAnimator;
+import android.content.Intent;
+import android.os.Bundle;
+import android.text.TextUtils;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.animation.AccelerateInterpolator;
+import android.view.animation.DecelerateInterpolator;
+import android.widget.ImageButton;
+import android.widget.LinearLayout;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import androidx.activity.EdgeToEdge;
+import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.constraintlayout.widget.ConstraintLayout;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.lifecycle.LiveData;
+import androidx.lifecycle.ViewModelProvider;
+
+import com.example.flashcard.data.Flashcard;
+import com.example.flashcard.viewmodel.FlashcardViewModel;
+import com.example.flashcard.utils.FlashcardColorUtils;
+import com.google.android.material.card.MaterialCardView;
+import com.google.android.material.button.MaterialButton;
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import com.google.android.material.textfield.TextInputEditText;
+
+import java.util.ArrayList;
+import java.util.List;
+
+public class FlashcardActivity extends AppCompatActivity {
+
+    private FlashcardViewModel flashcardViewModel;
+    private List<Flashcard> flashcards = new ArrayList<>();
+    private int currentIndex = 0;
+
+    private ConstraintLayout clFlashcardContent;
+    private LinearLayout llEmptyState;
+    private TextView tvCounter;
+
+    private MaterialCardView cvFlashcardFront;
+    private MaterialCardView cvFlashcardBack;
+    private TextView tvQuestionLabel;
+    private TextView tvQuestion;
+    private TextView tvAnswerLabel;
+    private TextView tvAnswer;
+
+    private ImageButton btnEdit;
+    private ImageButton btnDelete;
+    private MaterialButton btnShowAnswer;
+    private MaterialButton btnPrevious;
+    private MaterialButton btnNext;
+    private MaterialButton btnEmptyAdd;
+    private FloatingActionButton fabAdd;
+
+    private boolean isAnswerVisible = false;
+    private boolean isFlipping = false;
+    private boolean jumpToLastOnNextUpdate = false;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        EdgeToEdge.enable(this);
+        setContentView(R.layout.activity_flashcard);
+
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
+            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
+            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
+            return insets;
+        });
+
+        initViews();
+        setupListeners();
+        
+        Intent intent = getIntent();
+        int subjectId = intent.getIntExtra("SUBJECT_ID", -1);
+        int startIndex = intent.getIntExtra("START_INDEX", 0);
+        this.currentIndex = startIndex;
+
+        if (subjectId == -1) {
+            fabAdd.setVisibility(View.GONE);
+            btnEmptyAdd.setVisibility(View.GONE);
+        }
+
+        flashcardViewModel = new ViewModelProvider(this).get(FlashcardViewModel.class);
+        
+        LiveData<List<com.example.flashcard.data.Flashcard>> source = 
+            (subjectId == -1) ? flashcardViewModel.getAllFlashcards() : flashcardViewModel.getFlashcardsForSubject(subjectId);
+
+        source.observe(this, newFlashcards -> {
+            flashcards = newFlashcards;
+
+            if (jumpToLastOnNextUpdate && flashcards.size() > 0) {
+                currentIndex = flashcards.size() - 1;
+                jumpToLastOnNextUpdate = false;
+            }
+
+            // Adjust index if we deleted the last item
+            if (currentIndex >= flashcards.size() && flashcards.size() > 0) {
+                currentIndex = flashcards.size() - 1;
+            }
+
+            updateUI();
+        });
+    }
+
+    private void initViews() {
+        clFlashcardContent = findViewById(R.id.clFlashcardContent);
+        llEmptyState = findViewById(R.id.llEmptyState);
+
+                tvCounter = findViewById(R.id.tvCounter);
+
+        cvFlashcardFront = findViewById(R.id.cvFlashcardFront);
+        cvFlashcardBack = findViewById(R.id.cvFlashcardBack);
+
+        tvQuestionLabel = findViewById(R.id.tvQuestionLabel);
+        tvQuestion = findViewById(R.id.tvQuestion);
+        tvAnswerLabel = findViewById(R.id.tvAnswerLabel);
+        tvAnswer = findViewById(R.id.tvAnswer);
+
+        btnEdit = findViewById(R.id.btnEdit);
+        btnDelete = findViewById(R.id.btnDelete);
+        btnShowAnswer = findViewById(R.id.btnShowAnswer);
+        btnPrevious = findViewById(R.id.btnPrevious);
+        btnNext = findViewById(R.id.btnNext);
+        btnEmptyAdd = findViewById(R.id.btnEmptyAdd);
+        fabAdd = findViewById(R.id.fabAdd);
+        
+        TextView emptyTitle = llEmptyState.findViewById(R.id.tvEmptyTitle);
+        TextView emptyDesc = llEmptyState.findViewById(R.id.tvEmptyDesc);
+        int subjectId = getIntent().getIntExtra("SUBJECT_ID", -1);
+        if (subjectId == -1) {
+            emptyTitle.setText("No flashcards available.");
+            emptyDesc.setText("Add flashcards from a subject to start studying.");
+        } else {
+            emptyTitle.setText("No flashcards in this subject yet.");
+            emptyDesc.setText("Create a flashcard to get started.");
+        }
+    }
+
+    private void setupListeners() {
+        btnShowAnswer.setOnClickListener(v -> toggleAnswer());
+
+        btnNext.setOnClickListener(v -> {
+            if (currentIndex < flashcards.size() - 1) {
+                currentIndex++;
+                resetAnswerVisibility();
+                updateUI();
+            }
+        });
+
+        btnPrevious.setOnClickListener(v -> {
+            if (currentIndex > 0) {
+                currentIndex--;
+                resetAnswerVisibility();
+                updateUI();
+            }
+        });
+
+        fabAdd.setOnClickListener(v -> showAddEditDialog(null));
+        btnEmptyAdd.setOnClickListener(v -> showAddEditDialog(null));
+
+        btnEdit.setOnClickListener(v -> {
+            if (flashcards != null && flashcards.size() > 0) {
+                showAddEditDialog(flashcards.get(currentIndex));
+            }
+        });
+
+        btnDelete.setOnClickListener(v -> {
+            if (flashcards != null && flashcards.size() > 0) {
+                showDeleteConfirmation(flashcards.get(currentIndex));
+            }
+        });
+    }
+
+    private void updateUI() {
+        if (flashcards == null || flashcards.isEmpty()) {
+            clFlashcardContent.setVisibility(View.GONE);
+            fabAdd.setVisibility(View.GONE);
+            llEmptyState.setVisibility(View.VISIBLE);
+        } else {
+            clFlashcardContent.setVisibility(View.VISIBLE);
+            
+            // Only show FAB if we are inside a subject (subjectId != -1)
+            int subjectId = getIntent().getIntExtra("SUBJECT_ID", -1);
+            if (subjectId != -1) {
+                fabAdd.setVisibility(View.VISIBLE);
+            } else {
+                fabAdd.setVisibility(View.GONE);
+            }
+            
+            llEmptyState.setVisibility(View.GONE);
+
+            Flashcard currentFlashcard = flashcards.get(currentIndex);
+            tvQuestion.setText(currentFlashcard.getQuestion());
+            tvAnswer.setText(currentFlashcard.getAnswer());
+
+            int bgColor = FlashcardColorUtils.getColorForId(currentFlashcard.getId());
+            int pText = FlashcardColorUtils.getPrimaryTextColor(bgColor);
+            int sText = FlashcardColorUtils.getSecondaryTextColor(bgColor);
+
+            cvFlashcardFront.setCardBackgroundColor(bgColor);
+            cvFlashcardBack.setCardBackgroundColor(bgColor);
+
+            tvQuestionLabel.setTextColor(sText);
+            tvQuestion.setTextColor(pText);
+
+            tvAnswerLabel.setTextColor(sText);
+            tvAnswer.setTextColor(pText);
+
+            tvCounter.setText("Card " + (currentIndex + 1) + " of " + flashcards.size());
+
+            btnPrevious.setEnabled(currentIndex > 0);
+            btnNext.setEnabled(currentIndex < flashcards.size() - 1);
+        }
+    }
+
+    private void toggleAnswer() {
+        if (isFlipping) return;
+
+        btnShowAnswer.setEnabled(false);
+        btnNext.setEnabled(false);
+        btnPrevious.setEnabled(false);
+        isFlipping = true;
+
+        float scale = getResources().getDisplayMetrics().density;
+        float cameraDist = 8000 * scale;
+        cvFlashcardFront.setCameraDistance(cameraDist);
+        cvFlashcardBack.setCameraDistance(cameraDist);
+
+        if (isAnswerVisible) {
+            // BACK to FRONT
+            ObjectAnimator animOut = ObjectAnimator.ofFloat(cvFlashcardBack, "rotationY", 0f, -90f);
+            animOut.setDuration(250);
+            animOut.setInterpolator(new AccelerateInterpolator());
+
+            ObjectAnimator animIn = ObjectAnimator.ofFloat(cvFlashcardFront, "rotationY", 90f, 0f);
+            animIn.setDuration(250);
+            animIn.setInterpolator(new DecelerateInterpolator());
+
+            animOut.addListener(new AnimatorListenerAdapter() {
+                @Override
+                public void onAnimationEnd(Animator animation) {
+                    cvFlashcardBack.setVisibility(View.GONE);
+                    cvFlashcardFront.setVisibility(View.VISIBLE);
+                    btnShowAnswer.setText("Show Answer");
+                    animIn.start();
+                }
+            });
+            animIn.addListener(new AnimatorListenerAdapter() {
+                @Override
+                public void onAnimationEnd(Animator animation) {
+                    isFlipping = false;
+                    isAnswerVisible = false;
+                    btnShowAnswer.setEnabled(true);
+                    btnNext.setEnabled(currentIndex < flashcards.size() - 1);
+                    btnPrevious.setEnabled(currentIndex > 0);
+                }
+            });
+            animOut.start();
+        } else {
+            // FRONT to BACK
+            ObjectAnimator animOut = ObjectAnimator.ofFloat(cvFlashcardFront, "rotationY", 0f, 90f);
+            animOut.setDuration(250);
+            animOut.setInterpolator(new AccelerateInterpolator());
+
+            ObjectAnimator animIn = ObjectAnimator.ofFloat(cvFlashcardBack, "rotationY", -90f, 0f);
+            animIn.setDuration(250);
+            animIn.setInterpolator(new DecelerateInterpolator());
+
+            animOut.addListener(new AnimatorListenerAdapter() {
+                @Override
+                public void onAnimationEnd(Animator animation) {
+                    cvFlashcardFront.setVisibility(View.GONE);
+                    cvFlashcardBack.setVisibility(View.VISIBLE);
+                    btnShowAnswer.setText("Hide Answer");
+                    animIn.start();
+                }
+            });
+            animIn.addListener(new AnimatorListenerAdapter() {
+                @Override
+                public void onAnimationEnd(Animator animation) {
+                    isFlipping = false;
+                    isAnswerVisible = true;
+                    btnShowAnswer.setEnabled(true);
+                    btnNext.setEnabled(currentIndex < flashcards.size() - 1);
+                    btnPrevious.setEnabled(currentIndex > 0);
+                }
+            });
+            animOut.start();
+        }
+    }
+
+    private void resetAnswerVisibility() {
+        cvFlashcardFront.animate().cancel();
+        cvFlashcardBack.animate().cancel();
+
+        cvFlashcardFront.setRotationY(0f);
+        cvFlashcardFront.setVisibility(View.VISIBLE);
+
+        cvFlashcardBack.setRotationY(-90f);
+        cvFlashcardBack.setVisibility(View.GONE);
+
+        btnShowAnswer.setText("Show Answer");
+        isAnswerVisible = false;
+        isFlipping = false;
+
+        btnShowAnswer.setEnabled(true);
+        btnNext.setEnabled(currentIndex < flashcards.size() - 1);
+        btnPrevious.setEnabled(currentIndex > 0);
+    }
+
+    private void showAddEditDialog(Flashcard flashcardToEdit) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_add_edit_flashcard, null);
+        builder.setView(dialogView);
+
+        TextView tvDialogTitle = dialogView.findViewById(R.id.tvDialogTitle);
+        TextInputEditText etQuestion = dialogView.findViewById(R.id.etQuestion);
+        TextInputEditText etAnswer = dialogView.findViewById(R.id.etAnswer);
+
+        if (flashcardToEdit != null) {
+            tvDialogTitle.setText("Edit Flashcard");
+            etQuestion.setText(flashcardToEdit.getQuestion());
+            etAnswer.setText(flashcardToEdit.getAnswer());
+        } else {
+            tvDialogTitle.setText("Add Flashcard");
+        }
+
+        builder.setPositiveButton("Save", (dialog, which) -> {
+        });
+        builder.setNegativeButton("Cancel", (dialog, which) -> dialog.dismiss());
+
+        AlertDialog dialog = builder.create();
+        dialog.show();
+
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            String question = etQuestion.getText() != null ? etQuestion.getText().toString().trim() : "";
+            String answer = etAnswer.getText() != null ? etAnswer.getText().toString().trim() : "";
+
+            if (TextUtils.isEmpty(question) || TextUtils.isEmpty(answer)) {
+                Toast.makeText(FlashcardActivity.this, "Question and Answer cannot be empty", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            if (flashcardToEdit == null) {
+                int targetSubjectId = getIntent().getIntExtra("SUBJECT_ID", -1);
+                if (targetSubjectId == -1) {
+                    Toast.makeText(FlashcardActivity.this, "Cannot add directly from All Cards.", Toast.LENGTH_SHORT).show();
+                    dialog.dismiss();
+                    return;
+                }
+                Flashcard newFlashcard = new Flashcard(question, answer, targetSubjectId);
+                flashcardViewModel.insert(newFlashcard);
+
+                jumpToLastOnNextUpdate = true;
+                resetAnswerVisibility();
+            } else {
+                flashcardToEdit.setQuestion(question);
+                flashcardToEdit.setAnswer(answer);
+                flashcardViewModel.update(flashcardToEdit);
+            }
+            dialog.dismiss();
+        });
+    }
+
+    private void showDeleteConfirmation(Flashcard flashcard) {
+        new AlertDialog.Builder(this)
+                .setTitle("Delete Flashcard?")
+                .setMessage("Are you sure you want to delete this flashcard?")
+                .setPositiveButton("Delete", (dialog, which) -> {
+                    flashcardViewModel.delete(flashcard);
+                    // Adjust currentIndex if deleting the last item in UI manually before observer, or just rely on observer
+                    resetAnswerVisibility();
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+}
+

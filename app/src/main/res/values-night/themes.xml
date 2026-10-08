@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Base.Theme.Flashcard" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="android:windowBackground">@color/bg_app</item>
+        <item name="colorSurface">@color/bg_surface</item>
+        <item name="colorSurfaceVariant">@color/bg_surface_elevated</item>
+        <item name="android:textColorPrimary">@color/text_primary</item>
+        <item name="android:textColorSecondary">@color/text_secondary</item>
+        <item name="colorPrimary">@color/nav_subjects</item>
+        <item name="colorOnPrimary">@color/text_inverted</item>
+        <item name="colorSecondary">@color/nav_all_cards</item>
+        <item name="alertDialogTheme">@style/Theme.Flashcard.AlertDialog</item>
+        <item name="android:statusBarColor">@color/bg_app</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+
+    <style name="Theme.Flashcard" parent="Base.Theme.Flashcard" />
+    
+    <style name="Theme.Flashcard.AlertDialog" parent="ThemeOverlay.Material3.MaterialAlertDialog">
+        <item name="android:background">@color/bg_surface_elevated</item>
+        <item name="android:textColorPrimary">@color/text_primary</item>
+        <item name="android:textColorSecondary">@color/text_secondary</item>
+    </style>
+</resources>
